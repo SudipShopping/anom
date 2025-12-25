@@ -1,0 +1,439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Amingo Auto Registration</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 600px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            text-align: center;
+            color: #667eea;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+        
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 8px;
+            color: #333;
+            font-weight: 600;
+            font-size: 14px;
+        }
+        
+        input[type="text"],
+        input[type="number"] {
+            width: 100%;
+            padding: 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        input:focus {
+            outline: none;
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+        
+        .row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        button {
+            width: 100%;
+            padding: 15px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        
+        button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
+        }
+        
+        button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .status-box {
+            margin-top: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            display: none;
+        }
+        
+        .status-box.active {
+            display: block;
+        }
+        
+        .progress-bar {
+            width: 100%;
+            height: 30px;
+            background: #e0e0e0;
+            border-radius: 15px;
+            overflow: hidden;
+            margin-bottom: 15px;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            width: 0%;
+            transition: width 0.3s;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: 600;
+            font-size: 12px;
+        }
+        
+        .stats {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .stat-card {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+        }
+        
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+        
+        .logs {
+            background: #1e1e1e;
+            color: #0f0;
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            line-height: 1.6;
+        }
+        
+        .download-btn {
+            margin-top: 15px;
+            background: #28a745;
+        }
+        
+        .download-btn:hover {
+            background: #218838;
+        }
+        
+        .emoji {
+            font-size: 50px;
+            text-align: center;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="emoji">🚀</div>
+        <h1>Amingo Auto Registration</h1>
+        <p class="subtitle">Dummy Account Testing Tool</p>
+        
+        <form id="registrationForm">
+            <div class="form-group">
+                <label for="refLink">🔗 Referral Link</label>
+                <input 
+                    type="text" 
+                    id="refLink" 
+                    placeholder="https://amingo.top/?ref=1703"
+                    required
+                >
+            </div>
+            
+            <div class="form-group">
+                <label for="captcha">🔢 Captcha Number</label>
+                <div id="captchaImageBox" style="
+                    background: #f8f9fa;
+                    padding: 15px;
+                    border-radius: 10px;
+                    text-align: center;
+                    margin-bottom: 10px;
+                    display: none;
+                ">
+                    <img id="captchaImage" style="max-width: 100%; height: auto; border-radius: 5px;">
+                    <div id="captchaText" style="font-size: 24px; font-weight: bold; color: #667eea; padding: 20px;"></div>
+                    <button type="button" id="refreshCaptcha" style="
+                        width: auto;
+                        padding: 8px 20px;
+                        font-size: 14px;
+                        margin-top: 10px;
+                    ">🔄 Refresh Captcha</button>
+                </div>
+                <input 
+                    type="text" 
+                    id="captcha" 
+                    placeholder="Enter captcha (e.g., 0133)"
+                    required
+                >
+            </div>
+            
+            <div class="row">
+                <div class="form-group">
+                    <label for="count">📊 Account Count</label>
+                    <input 
+                        type="number" 
+                        id="count" 
+                        value="10" 
+                        min="1" 
+                        max="1000"
+                        required
+                    >
+                </div>
+                
+                <div class="form-group">
+                    <label for="delay">⏱️ Delay (seconds)</label>
+                    <input 
+                        type="number" 
+                        id="delay" 
+                        value="3" 
+                        min="1" 
+                        max="60"
+                        required
+                    >
+                </div>
+            </div>
+            
+            <button type="submit" id="startBtn">Start Registration</button>
+        </form>
+        
+        <div class="status-box" id="statusBox">
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill">0%</div>
+            </div>
+            
+            <div class="stats">
+                <div class="stat-card">
+                    <div class="stat-value" id="currentStat">0</div>
+                    <div class="stat-label">Current</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="successStat">0</div>
+                    <div class="stat-label">Success</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value" id="failedStat">0</div>
+                    <div class="stat-label">Failed</div>
+                </div>
+            </div>
+            
+            <div class="logs" id="logs"></div>
+            
+            <button class="download-btn" id="downloadBtn">
+                📥 Download Accounts
+            </button>
+        </div>
+    </div>
+    
+    <script>
+        const form = document.getElementById('registrationForm');
+        const startBtn = document.getElementById('startBtn');
+        const statusBox = document.getElementById('statusBox');
+        const progressFill = document.getElementById('progressFill');
+        const currentStat = document.getElementById('currentStat');
+        const successStat = document.getElementById('successStat');
+        const failedStat = document.getElementById('failedStat');
+        const logs = document.getElementById('logs');
+        const downloadBtn = document.getElementById('downloadBtn');
+        const refLinkInput = document.getElementById('refLink');
+        const captchaImageBox = document.getElementById('captchaImageBox');
+        const captchaImage = document.getElementById('captchaImage');
+        const captchaText = document.getElementById('captchaText');
+        const refreshCaptchaBtn = document.getElementById('refreshCaptcha');
+        
+        let statusInterval = null;
+        
+        // Load captcha when ref link is entered
+        refLinkInput.addEventListener('blur', loadCaptcha);
+        refreshCaptchaBtn.addEventListener('click', loadCaptcha);
+        
+        async function loadCaptcha() {
+            const refLink = refLinkInput.value.trim();
+            if (!refLink) return;
+            
+            try {
+                captchaImageBox.style.display = 'block';
+                captchaImage.style.display = 'none';
+                captchaText.style.display = 'none';
+                captchaText.textContent = 'Loading captcha...';
+                captchaText.style.display = 'block';
+                
+                const response = await fetch(`/get_captcha?ref_link=${encodeURIComponent(refLink)}`);
+                const data = await response.json();
+                
+                if (data.success) {
+                    if (data.image) {
+                        // Show image captcha
+                        captchaImage.src = data.image;
+                        captchaImage.style.display = 'block';
+                        captchaText.style.display = 'none';
+                    } else if (data.text) {
+                        // Show text captcha
+                        captchaText.textContent = data.text;
+                        captchaText.style.display = 'block';
+                        captchaImage.style.display = 'none';
+                    }
+                } else {
+                    captchaText.textContent = '⚠️ Could not load captcha: ' + (data.error || 'Unknown error');
+                    captchaText.style.display = 'block';
+                }
+            } catch (error) {
+                captchaText.textContent = '❌ Error loading captcha: ' + error.message;
+                captchaText.style.display = 'block';
+            }
+        }
+        
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const data = {
+                refLink: document.getElementById('refLink').value,
+                captcha: document.getElementById('captcha').value,
+                count: document.getElementById('count').value,
+                delay: document.getElementById('delay').value
+            };
+            
+            startBtn.disabled = true;
+            startBtn.textContent = 'Starting...';
+            statusBox.classList.add('active');
+            logs.innerHTML = '';
+            
+            try {
+                const response = await fetch('/start', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    startBtn.textContent = 'Running...';
+                    startStatusPolling();
+                } else {
+                    const error = await response.json();
+                    alert('Error: ' + error.error);
+                    startBtn.disabled = false;
+                    startBtn.textContent = 'Start Registration';
+                }
+            } catch (error) {
+                alert('Error: ' + error.message);
+                startBtn.disabled = false;
+                startBtn.textContent = 'Start Registration';
+            }
+        });
+        
+        function startStatusPolling() {
+            statusInterval = setInterval(updateStatus, 1000);
+        }
+        
+        async function updateStatus() {
+            try {
+                const response = await fetch('/status');
+                const status = await response.json();
+                
+                // Update progress
+                const progress = status.total > 0 
+                    ? Math.round((status.current / status.total) * 100) 
+                    : 0;
+                progressFill.style.width = progress + '%';
+                progressFill.textContent = progress + '%';
+                
+                // Update stats
+                currentStat.textContent = status.current + '/' + status.total;
+                successStat.textContent = status.success;
+                failedStat.textContent = status.failed;
+                
+                // Update logs
+                if (status.logs && status.logs.length > 0) {
+                    logs.innerHTML = status.logs
+                        .slice(-20)
+                        .map(log => log.replace(/\n/g, '<br>'))
+                        .join('<br>');
+                    logs.scrollTop = logs.scrollHeight;
+                }
+                
+                // Check if completed
+                if (!status.running && status.current > 0) {
+                    clearInterval(statusInterval);
+                    startBtn.disabled = false;
+                    startBtn.textContent = '✅ Completed! Start Again?';
+                }
+                
+            } catch (error) {
+                console.error('Status update error:', error);
+            }
+        }
+        
+        downloadBtn.addEventListener('click', () => {
+            window.location.href = '/download';
+        });
+    </script>
+</body>
+</html>
