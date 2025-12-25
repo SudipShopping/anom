@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Amingo Auto Registration</title>
+    <title>Amingo Script by Flash</title>
     <style>
         * {
             margin: 0;
@@ -188,6 +188,36 @@
             text-align: center;
             margin-bottom: 20px;
         }
+        
+        #captchaImageBox {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 10px;
+            display: none;
+        }
+        
+        #captchaImage {
+            max-width: 100%;
+            height: auto;
+            border-radius: 5px;
+            border: 2px solid #ddd;
+        }
+        
+        #captchaText {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            padding: 20px;
+        }
+        
+        #refreshCaptcha {
+            width: auto;
+            padding: 8px 20px;
+            font-size: 14px;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
@@ -209,27 +239,16 @@
             
             <div class="form-group">
                 <label for="captcha">🔢 Captcha Number</label>
-                <div id="captchaImageBox" style="
-                    background: #f8f9fa;
-                    padding: 15px;
-                    border-radius: 10px;
-                    text-align: center;
-                    margin-bottom: 10px;
-                    display: none;
-                ">
-                    <img id="captchaImage" style="max-width: 100%; height: auto; border-radius: 5px;">
-                    <div id="captchaText" style="font-size: 24px; font-weight: bold; color: #667eea; padding: 20px;"></div>
-                    <button type="button" id="refreshCaptcha" style="
-                        width: auto;
-                        padding: 8px 20px;
-                        font-size: 14px;
-                        margin-top: 10px;
-                    ">🔄 Refresh Captcha</button>
+                <div id="captchaImageBox">
+                    <img id="captchaImage" style="display: none;">
+                    <div id="captchaText"></div>
+                    <button type="button" id="refreshCaptcha">🔄 Refresh Captcha</button>
                 </div>
                 <input 
                     type="text" 
                     id="captcha" 
-                    placeholder="Enter captcha (e.g., 0133)"
+                    placeholder="Enter 4-digit captcha"
+                    maxlength="4"
                     required
                 >
             </div>
@@ -320,9 +339,8 @@
             try {
                 captchaImageBox.style.display = 'block';
                 captchaImage.style.display = 'none';
-                captchaText.style.display = 'none';
-                captchaText.textContent = 'Loading captcha...';
                 captchaText.style.display = 'block';
+                captchaText.textContent = 'Loading captcha...';
                 
                 const response = await fetch(`/get_captcha?ref_link=${encodeURIComponent(refLink)}`);
                 const data = await response.json();
