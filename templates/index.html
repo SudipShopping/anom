@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Amingo Script by Flash</title>
+    <title>Amingo Auto Registration by Flash</title>
     <style>
         * {
             margin: 0;
@@ -56,8 +56,7 @@
             font-size: 14px;
         }
         
-        input[type="text"],
-        input[type="number"] {
+        input[type="text"] {
             width: 100%;
             padding: 12px 15px;
             border: 2px solid #e0e0e0;
@@ -70,12 +69,6 @@
             outline: none;
             border-color: #667eea;
             box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
-        }
-        
-        .row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
         }
         
         button {
@@ -91,7 +84,7 @@
             transition: transform 0.2s, box-shadow 0.2s;
         }
         
-        button:hover {
+        button:hover:not(:disabled) {
             transform: translateY(-2px);
             box-shadow: 0 10px 20px rgba(102, 126, 234, 0.3);
         }
@@ -102,7 +95,7 @@
             transform: none;
         }
         
-        .status-box {
+        .result-box {
             margin-top: 30px;
             padding: 20px;
             background: #f8f9fa;
@@ -110,56 +103,18 @@
             display: none;
         }
         
-        .status-box.active {
+        .result-box.active {
             display: block;
         }
         
-        .progress-bar {
-            width: 100%;
-            height: 30px;
-            background: #e0e0e0;
-            border-radius: 15px;
-            overflow: hidden;
-            margin-bottom: 15px;
+        .result-box.success {
+            background: #d4edda;
+            border: 2px solid #28a745;
         }
         
-        .progress-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
-            width: 0%;
-            transition: width 0.3s;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: 600;
-            font-size: 12px;
-        }
-        
-        .stats {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 10px;
-            margin-bottom: 15px;
-        }
-        
-        .stat-card {
-            background: white;
-            padding: 15px;
-            border-radius: 10px;
-            text-align: center;
-        }
-        
-        .stat-value {
-            font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
-        }
-        
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
+        .result-box.error {
+            background: #f8d7da;
+            border: 2px solid #dc3545;
         }
         
         .logs {
@@ -171,16 +126,63 @@
             overflow-y: auto;
             font-family: 'Courier New', monospace;
             font-size: 12px;
-            line-height: 1.6;
+            line-height: 1.8;
+            margin-bottom: 15px;
+        }
+        
+        .account-info {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 15px;
+        }
+        
+        .account-info h3 {
+            color: #28a745;
+            margin-bottom: 10px;
+            font-size: 18px;
+        }
+        
+        .account-info p {
+            margin: 5px 0;
+            font-size: 14px;
+            color: #333;
+        }
+        
+        .account-info strong {
+            color: #667eea;
+        }
+        
+        .stats {
+            background: white;
+            padding: 15px;
+            border-radius: 10px;
+            text-align: center;
+            margin-bottom: 15px;
+        }
+        
+        .stats-value {
+            font-size: 36px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        
+        .stats-label {
+            font-size: 14px;
+            color: #666;
+            margin-top: 5px;
         }
         
         .download-btn {
-            margin-top: 15px;
             background: #28a745;
         }
         
         .download-btn:hover {
             background: #218838;
+        }
+        
+        .next-btn {
+            background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
         }
         
         .emoji {
@@ -206,10 +208,10 @@
         }
         
         #captchaText {
-            font-size: 24px;
+            font-size: 20px;
             font-weight: bold;
             color: #667eea;
-            padding: 20px;
+            padding: 15px;
         }
         
         #refreshCaptcha {
@@ -224,7 +226,7 @@
     <div class="container">
         <div class="emoji">🚀</div>
         <h1>Amingo Auto Registration</h1>
-        <p class="subtitle">Dummy Account Testing Tool</p>
+        <p class="subtitle">One Account at a Time - Auto Reload</p>
         
         <form id="registrationForm">
             <div class="form-group">
@@ -253,80 +255,51 @@
                 >
             </div>
             
-            <div class="row">
-                <div class="form-group">
-                    <label for="count">📊 Account Count</label>
-                    <input 
-                        type="number" 
-                        id="count" 
-                        value="10" 
-                        min="1" 
-                        max="1000"
-                        required
-                    >
-                </div>
-                
-                <div class="form-group">
-                    <label for="delay">⏱️ Delay (seconds)</label>
-                    <input 
-                        type="number" 
-                        id="delay" 
-                        value="3" 
-                        min="1" 
-                        max="60"
-                        required
-                    >
-                </div>
-            </div>
-            
-            <button type="submit" id="startBtn">Start Registration</button>
+            <button type="submit" id="submitBtn">Create Account</button>
         </form>
         
-        <div class="status-box" id="statusBox">
-            <div class="progress-bar">
-                <div class="progress-fill" id="progressFill">0%</div>
+        <div class="result-box" id="resultBox">
+            <div class="stats">
+                <div class="stats-value" id="totalCreated">0</div>
+                <div class="stats-label">Total Accounts Created</div>
             </div>
             
-            <div class="stats">
-                <div class="stat-card">
-                    <div class="stat-value" id="currentStat">0</div>
-                    <div class="stat-label">Current</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="successStat">0</div>
-                    <div class="stat-label">Success</div>
-                </div>
-                <div class="stat-card">
-                    <div class="stat-value" id="failedStat">0</div>
-                    <div class="stat-label">Failed</div>
-                </div>
+            <div class="account-info" id="accountInfo" style="display: none;">
+                <h3>✅ Account Created Successfully!</h3>
+                <p><strong>Username:</strong> <span id="accountUsername"></span></p>
+                <p><strong>Email:</strong> <span id="accountEmail"></span></p>
+                <p><strong>Password:</strong> <span id="accountPassword"></span></p>
             </div>
             
             <div class="logs" id="logs"></div>
             
+            <button class="next-btn" id="nextBtn" style="display: none;">
+                ➡️ Create Next Account
+            </button>
+            
             <button class="download-btn" id="downloadBtn">
-                📥 Download Accounts
+                📥 Download All Accounts
             </button>
         </div>
     </div>
     
     <script>
         const form = document.getElementById('registrationForm');
-        const startBtn = document.getElementById('startBtn');
-        const statusBox = document.getElementById('statusBox');
-        const progressFill = document.getElementById('progressFill');
-        const currentStat = document.getElementById('currentStat');
-        const successStat = document.getElementById('successStat');
-        const failedStat = document.getElementById('failedStat');
+        const submitBtn = document.getElementById('submitBtn');
+        const resultBox = document.getElementById('resultBox');
         const logs = document.getElementById('logs');
         const downloadBtn = document.getElementById('downloadBtn');
+        const nextBtn = document.getElementById('nextBtn');
         const refLinkInput = document.getElementById('refLink');
+        const captchaInput = document.getElementById('captcha');
         const captchaImageBox = document.getElementById('captchaImageBox');
         const captchaImage = document.getElementById('captchaImage');
         const captchaText = document.getElementById('captchaText');
         const refreshCaptchaBtn = document.getElementById('refreshCaptcha');
+        const accountInfo = document.getElementById('accountInfo');
+        const totalCreatedEl = document.getElementById('totalCreated');
         
-        let statusInterval = null;
+        let totalCreated = 0;
         
         // Load captcha when ref link is entered
         refLinkInput.addEventListener('blur', loadCaptcha);
@@ -345,18 +318,10 @@
                 const response = await fetch(`/get_captcha?ref_link=${encodeURIComponent(refLink)}`);
                 const data = await response.json();
                 
-                if (data.success) {
-                    if (data.image) {
-                        // Show image captcha
-                        captchaImage.src = data.image;
-                        captchaImage.style.display = 'block';
-                        captchaText.style.display = 'none';
-                    } else if (data.text) {
-                        // Show text captcha
-                        captchaText.textContent = data.text;
-                        captchaText.style.display = 'block';
-                        captchaImage.style.display = 'none';
-                    }
+                if (data.success && data.image) {
+                    captchaImage.src = data.image;
+                    captchaImage.style.display = 'block';
+                    captchaText.style.display = 'none';
                 } else {
                     captchaText.textContent = '⚠️ Could not load captcha: ' + (data.error || 'Unknown error');
                     captchaText.style.display = 'block';
@@ -371,19 +336,20 @@
             e.preventDefault();
             
             const data = {
-                refLink: document.getElementById('refLink').value,
-                captcha: document.getElementById('captcha').value,
-                count: document.getElementById('count').value,
-                delay: document.getElementById('delay').value
+                refLink: refLinkInput.value,
+                captcha: captchaInput.value
             };
             
-            startBtn.disabled = true;
-            startBtn.textContent = 'Starting...';
-            statusBox.classList.add('active');
-            logs.innerHTML = '';
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Creating Account...';
+            resultBox.classList.add('active');
+            resultBox.classList.remove('success', 'error');
+            logs.innerHTML = 'Processing...';
+            accountInfo.style.display = 'none';
+            nextBtn.style.display = 'none';
             
             try {
-                const response = await fetch('/start', {
+                const response = await fetch('/register', {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json'
@@ -391,63 +357,63 @@
                     body: JSON.stringify(data)
                 });
                 
-                if (response.ok) {
-                    startBtn.textContent = 'Running...';
-                    startStatusPolling();
-                } else {
-                    const error = await response.json();
-                    alert('Error: ' + error.error);
-                    startBtn.disabled = false;
-                    startBtn.textContent = 'Start Registration';
+                const result = await response.json();
+                
+                // Display logs
+                if (result.logs) {
+                    logs.innerHTML = result.logs.join('<br>');
                 }
+                
+                if (result.success) {
+                    // Success!
+                    resultBox.classList.add('success');
+                    totalCreated++;
+                    totalCreatedEl.textContent = totalCreated;
+                    
+                    // Show account info
+                    if (result.account) {
+                        accountInfo.style.display = 'block';
+                        document.getElementById('accountUsername').textContent = result.account.nickname;
+                        document.getElementById('accountEmail').textContent = result.account.email;
+                        document.getElementById('accountPassword').textContent = result.account.password;
+                    }
+                    
+                    // Show next button
+                    nextBtn.style.display = 'block';
+                    
+                    // Clear captcha input
+                    captchaInput.value = '';
+                    
+                    // Auto reload captcha for next account
+                    setTimeout(() => {
+                        loadCaptcha();
+                    }, 1000);
+                    
+                } else {
+                    // Failed
+                    resultBox.classList.add('error');
+                    alert('Registration failed. Please check captcha and try again.');
+                }
+                
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Create Account';
+                
             } catch (error) {
+                resultBox.classList.add('error');
+                logs.innerHTML = '❌ Error: ' + error.message;
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Create Account';
                 alert('Error: ' + error.message);
-                startBtn.disabled = false;
-                startBtn.textContent = 'Start Registration';
             }
         });
         
-        function startStatusPolling() {
-            statusInterval = setInterval(updateStatus, 1000);
-        }
-        
-        async function updateStatus() {
-            try {
-                const response = await fetch('/status');
-                const status = await response.json();
-                
-                // Update progress
-                const progress = status.total > 0 
-                    ? Math.round((status.current / status.total) * 100) 
-                    : 0;
-                progressFill.style.width = progress + '%';
-                progressFill.textContent = progress + '%';
-                
-                // Update stats
-                currentStat.textContent = status.current + '/' + status.total;
-                successStat.textContent = status.success;
-                failedStat.textContent = status.failed;
-                
-                // Update logs
-                if (status.logs && status.logs.length > 0) {
-                    logs.innerHTML = status.logs
-                        .slice(-20)
-                        .map(log => log.replace(/\n/g, '<br>'))
-                        .join('<br>');
-                    logs.scrollTop = logs.scrollHeight;
-                }
-                
-                // Check if completed
-                if (!status.running && status.current > 0) {
-                    clearInterval(statusInterval);
-                    startBtn.disabled = false;
-                    startBtn.textContent = '✅ Completed! Start Again?';
-                }
-                
-            } catch (error) {
-                console.error('Status update error:', error);
-            }
-        }
+        // Next button - focus on captcha input
+        nextBtn.addEventListener('click', () => {
+            captchaInput.focus();
+            accountInfo.style.display = 'none';
+            nextBtn.style.display = 'none';
+            resultBox.classList.remove('success', 'error');
+        });
         
         downloadBtn.addEventListener('click', () => {
             window.location.href = '/download';
