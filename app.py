@@ -35,6 +35,117 @@ def add_log(message):
     registration_status['logs'].append(message)
     print(message)
 
+def login_account(session, base_url, nickname, password):
+    """Login to account after registration"""
+    try:
+        add_log(f"🔐 Logging in as {nickname}...")
+        
+        # Go to home page first to get session
+        home_response = session.get(base_url)
+        
+        # Parse to get login key
+        soup = BeautifulSoup(home_response.text, 'html.parser')
+        login_form = soup.find('form', {'action': '?pages=aut'})
+        
+        if not login_form:
+            add_log(f"❌ Login form not found")
+            return False
+        
+        key_input = login_form.find('input', {'name': 'key'})
+        if not key_input:
+            add_log(f"❌ Login key not found")
+            return False
+        
+        # Prepare login data
+        login_data = {
+            'email': nickname,
+            'pass': password,
+            'key': key_input.get('value'),
+            'sub_aut': ''
+        }
+        
+        # Submit login
+        login_url = f"{base_url}/?pages=aut"
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': base_url,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        
+        login_response = session.post(login_url, data=login_data, headers=headers, allow_redirects=True)
+        
+        if login_response.status_code == 200 and '?pages=game' in login_response.url:
+            add_log(f"✅ Login successful!")
+            return True
+        else:
+            add_log(f"❌ Login failed")
+            return False
+            
+    except Exception as e:
+        add_log(f"❌ Login error: {str(e)}")
+        return False
+
+def buy_person(session, base_url):
+    """Buy the first person after registration"""
+    try:
+        add_log(f"🛒 Navigating to person page...")
+        
+        # Go to person page
+        person_url = f"{base_url}/?pages=person"
+        person_response = session.get(person_url)
+        
+        if person_response.status_code != 200:
+            add_log(f"❌ Failed to load person page")
+            return False
+        
+        # Parse page to get form data
+        soup = BeautifulSoup(person_response.text, 'html.parser')
+        
+        # Find the buy form
+        buy_form = soup.find('form', {'method': 'POST'})
+        
+        if not buy_form:
+            add_log(f"❌ Buy form not found")
+            return False
+        
+        # Extract hidden fields
+        type_input = buy_form.find('input', {'name': 'type'})
+        key_input = buy_form.find('input', {'name': 'key'})
+        
+        if not type_input or not key_input:
+            add_log(f"❌ Required form fields not found")
+            return False
+        
+        # Prepare buy data
+        buy_data = {
+            'type': type_input.get('value'),
+            'key': key_input.get('value'),
+            'sub_person': 'true'
+        }
+        
+        add_log(f"💰 Purchasing person (slot_15)...")
+        
+        # Submit buy request
+        headers = {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Referer': person_url,
+            'Content-Type': 'application/x-www-form-urlencoded'
+        }
+        
+        buy_response = session.post(person_url, data=buy_data, headers=headers, allow_redirects=True)
+        
+        # Check success
+        if buy_response.status_code == 200:
+            add_log(f"✅ Person purchased successfully!")
+            return True
+        else:
+            add_log(f"❌ Purchase failed")
+            return False
+            
+    except Exception as e:
+        add_log(f"❌ Error during purchase: {str(e)}")
+        return False
+
 def register_single_account(ref_link, captcha_answer):
     try:
         session = requests.Session()
@@ -88,23 +199,43 @@ def register_single_account(ref_link, captcha_answer):
         add_log(f"🚀 Submitting registration...")
         reg_response = session.post(submit_url, data=registration_data, headers=headers, allow_redirects=True)
         
-        # Check success
-        if (reg_response.status_code == 200 and 
-            ('success' in reg_response.text.lower() or 
-             'welcome' in reg_response.text.lower() or
-             'dashboard' in reg_response.url.lower() or
-             'game' in reg_response.url.lower())):
-            
-            add_log(f"✅ Account created: {nickname}")
+        # Check if registration successful
+        registration_success = False
+        if reg_response.status_code == 200:
+            if ('?pages=game' in reg_response.url or 
+                'success' in reg_response.text.lower() or 
+                'welcome' in reg_response.text.lower()):
+                add_log(f"✅ Account created: {nickname}")
+                registration_success = True
+            else:
+                # Try to login manually
+                add_log(f"⚠️ Registration unclear, attempting login...")
+                if login_account(session, base_url, nickname, password):
+                    registration_success = True
+        
+        if not registration_success:
+            add_log(f"❌ Registration failed for {nickname}")
+            return False
+        
+        # Wait a bit before buying
+        time.sleep(2)
+        
+        # Now buy the person
+        if buy_person(session, base_url):
+            add_log(f"✅ Complete! Account ready with person purchased")
             
             # Save to file
             with open('accounts.txt', 'a', encoding='utf-8') as f:
-                f.write(f"{nickname}|{email}|{password}\n")
+                f.write(f"{nickname}|{email}|{password}|PERSON_BOUGHT\n")
             
             return True
         else:
-            add_log(f"❌ Registration failed for {nickname}")
-            add_log(f"Response: {reg_response.text[:200]}...")
+            add_log(f"⚠️ Account created but person purchase failed")
+            
+            # Save anyway but mark as incomplete
+            with open('accounts.txt', 'a', encoding='utf-8') as f:
+                f.write(f"{nickname}|{email}|{password}|NO_PERSON\n")
+            
             return False
             
     except Exception as e:
