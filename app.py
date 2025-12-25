@@ -26,9 +26,9 @@ def generate_random_string(length=8):
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
 
 def generate_credentials():
-    nickname = f"user_{generate_random_string(6)}"
-    email = f"{generate_random_string(8)}@gmail.com"
-    password = generate_random_string(10)
+    nickname = f"user{generate_random_string(6)}"
+    email = f"{generate_random_string(10)}@gmail.com"
+    password = generate_random_string(12)
     return nickname, email, password
 
 def add_log(message):
@@ -40,9 +40,21 @@ def register_single_account(ref_link, captcha_answer):
         session = requests.Session()
         base_url = "https://amingo.top"
         
-        # Load page
+        # Extract ref ID
+        ref_id = ""
+        if '?ref=' in ref_link:
+            ref_id = ref_link.split('?ref=')[-1]
+        elif '&ref=' in ref_link:
+            ref_id = ref_link.split('&ref=')[-1]
+        
+        # Build registration URL
+        reg_url = f"{base_url}/?pages=reg"
+        if ref_id:
+            reg_url = f"{base_url}/?pages=reg&ref={ref_id}"
+        
+        # Load registration page to get cookies/session
         add_log(f"📡 Loading registration page...")
-        response = session.get(ref_link)
+        response = session.get(reg_url)
         
         if response.status_code != 200:
             add_log(f"❌ Failed to load page. Status: {response.status_code}")
@@ -52,36 +64,36 @@ def register_single_account(ref_link, captcha_answer):
         nickname, email, password = generate_credentials()
         add_log(f"📝 Generated: {nickname} | {email}")
         
-        # Extract ref ID
-        ref_id = ""
-        if '?ref=' in ref_link:
-            ref_id = ref_link.split('?ref=')[-1]
-        elif '&ref=' in ref_link:
-            ref_id = ref_link.split('&ref=')[-1]
-        
-        # Prepare data
+        # Prepare registration data
         registration_data = {
-            'nickname': nickname,
+            'login': nickname,
             'email': email,
-            'password': password,
-            'number': captcha_answer,
-            'ref': ref_id
+            'pass': password,
+            'cap': captcha_answer
         }
         
-        # Submit
-        register_url = f"{base_url}/api/register"
+        # If ref exists, add it
+        if ref_id:
+            registration_data['ref'] = ref_id
+        
+        # Submit registration
+        submit_url = f"{base_url}/?pages=reg"
         
         headers = {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Referer': ref_link
+            'Referer': reg_url,
+            'Content-Type': 'application/x-www-form-urlencoded'
         }
         
         add_log(f"🚀 Submitting registration...")
-        reg_response = session.post(register_url, data=registration_data, headers=headers)
+        reg_response = session.post(submit_url, data=registration_data, headers=headers, allow_redirects=True)
         
         # Check success
-        if (reg_response.status_code == 200 or 
-            'success' in reg_response.text.lower()):
+        if (reg_response.status_code == 200 and 
+            ('success' in reg_response.text.lower() or 
+             'welcome' in reg_response.text.lower() or
+             'dashboard' in reg_response.url.lower() or
+             'game' in reg_response.url.lower())):
             
             add_log(f"✅ Account created: {nickname}")
             
@@ -92,6 +104,7 @@ def register_single_account(ref_link, captcha_answer):
             return True
         else:
             add_log(f"❌ Registration failed for {nickname}")
+            add_log(f"Response: {reg_response.text[:200]}...")
             return False
             
     except Exception as e:
@@ -163,52 +176,42 @@ def get_captcha():
         if not ref_link:
             return jsonify({'error': 'No ref link provided'}), 400
         
+        # Build registration URL
+        base_url = "https://amingo.top"
+        reg_url = f"{base_url}/?pages=reg"
+        if '?ref=' in ref_link:
+            ref_id = ref_link.split('?ref=')[-1]
+            reg_url = f"{base_url}/?pages=reg&ref={ref_id}"
+        
         session = requests.Session()
-        response = session.get(ref_link)
+        response = session.get(reg_url)
         
         if response.status_code != 200:
-            return jsonify({'error': 'Failed to load page'}), 400
+            return jsonify({'error': 'Failed to load registration page'}), 400
         
         # Parse HTML to find captcha image
         soup = BeautifulSoup(response.text, 'html.parser')
         
-        # Find captcha image (multiple patterns)
-        captcha_img = (
-            soup.find('img', {'id': 'captcha'}) or 
-            soup.find('img', {'class': 'captcha'}) or
-            soup.find('img', src=re.compile(r'captcha', re.I)) or
-            soup.find('div', {'class': 'captcha'})
-        )
+        # Find captcha image with id="cap_img"
+        captcha_img = soup.find('img', {'id': 'cap_img'})
         
         if captcha_img:
-            # If it's an image tag
-            if captcha_img.name == 'img':
-                img_src = captcha_img.get('src', '')
-                
-                # Handle relative URLs
-                if img_src and not img_src.startswith('http'):
-                    base_url = "https://amingo.top"
-                    img_src = base_url + ('/' if not img_src.startswith('/') else '') + img_src
-                
-                if img_src:
-                    # Download image
-                    img_response = session.get(img_src)
-                    if img_response.status_code == 200:
-                        # Convert to base64
-                        import base64
-                        img_base64 = base64.b64encode(img_response.content).decode('utf-8')
-                        return jsonify({
-                            'success': True,
-                            'image': f"data:image/png;base64,{img_base64}"
-                        })
+            img_src = captcha_img.get('src', '')
             
-            # If captcha is in a div (text-based)
-            elif captcha_img.name == 'div':
-                captcha_text = captcha_img.get_text(strip=True)
-                return jsonify({
-                    'success': True,
-                    'text': captcha_text
-                })
+            # Handle relative URLs (load/cap/image.php?id=...)
+            if img_src and not img_src.startswith('http'):
+                img_src = base_url + ('/' if not img_src.startswith('/') else '') + img_src
+            
+            if img_src:
+                # Download captcha image
+                img_response = session.get(img_src)
+                if img_response.status_code == 200:
+                    # Convert to base64
+                    img_base64 = base64.b64encode(img_response.content).decode('utf-8')
+                    return jsonify({
+                        'success': True,
+                        'image': f"data:image/png;base64,{img_base64}"
+                    })
         
         return jsonify({'error': 'Captcha not found in page'}), 404
         
