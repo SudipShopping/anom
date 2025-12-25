@@ -1,14 +1,29 @@
-# app.py - Flask Backend
+# app.py - Flask Backend with Playwright
 from flask import Flask, render_template, request, jsonify, send_file
-import requests
-from bs4 import BeautifulSoup
+from playwright.sync_api import sync_playwright
 import random
 import string
 import time
 import os
 import base64
+import threading
 
 app = Flask(__name__)
+
+# Global playwright instance
+playwright_instance = None
+browser = None
+
+def init_browser():
+    """Initialize Playwright browser"""
+    global playwright_instance, browser
+    if browser is None:
+        playwright_instance = sync_playwright().start()
+        browser = playwright_instance.chromium.launch(
+            headless=True,
+            args=['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
+        )
+    return browser
 
 def generate_random_string(length=8):
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
@@ -19,97 +34,147 @@ def generate_credentials():
     password = generate_random_string(12)
     return nickname, email, password
 
-def register_single_account(ref_link, captcha_answer):
-    """Register a single account"""
+def register_account_with_playwright(ref_link, captcha_answer):
+    """Register account using Playwright browser automation"""
     try:
-        session = requests.Session()
-        base_url = "https://amingo.top"
-        
-        # Extract ref ID
-        ref_id = ""
-        if '?ref=' in ref_link:
-            ref_id = ref_link.split('?ref=')[-1]
-        elif '&ref=' in ref_link:
-            ref_id = ref_link.split('&ref=')[-1]
-        
         logs = []
+        browser = init_browser()
         
-        # STEP 1: Visit referral link to set cookie
-        logs.append("📡 Visiting referral link...")
-        if ref_id:
-            initial_ref_url = f"{base_url}/?ref={ref_id}"
-            initial_response = session.get(initial_ref_url)
-            
-            if initial_response.status_code != 200:
-                logs.append(f"❌ Failed to load ref link")
-                return {'success': False, 'logs': logs}
-            
-            logs.append(f"✅ Referral cookie set (ref: {ref_id})")
-            time.sleep(1)
+        # Create new page
+        context = browser.new_context(
+            viewport={'width': 1280, 'height': 720},
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        )
+        page = context.new_page()
         
-        # STEP 2: Go to registration page
-        reg_url = f"{base_url}/?pages=reg"
-        logs.append("📡 Loading registration page...")
-        response = session.get(reg_url)
+        # Step 1: Visit referral link
+        logs.append(f"📡 Visiting referral link: {ref_link}")
+        page.goto(ref_link, wait_until='networkidle', timeout=30000)
+        time.sleep(2)
+        logs.append("✅ Referral link visited - cookie set")
         
-        if response.status_code != 200:
-            logs.append("❌ Failed to load registration page")
-            return {'success': False, 'logs': logs}
+        # Step 2: Go to registration page
+        logs.append("📡 Navigating to registration page...")
+        page.goto('https://amingo.top/?pages=reg', wait_until='networkidle', timeout=30000)
+        time.sleep(1)
+        logs.append("✅ Registration page loaded")
         
         # Generate credentials
         nickname, email, password = generate_credentials()
-        logs.append(f"📝 Generated: {nickname}")
+        logs.append(f"📝 Generated credentials: {nickname}")
         
-        # Prepare registration data
-        registration_data = {
-            'login': nickname,
-            'email': email,
-            'pass': password,
-            'cap': captcha_answer
-        }
+        # Step 3: Fill registration form
+        logs.append("✍️ Filling registration form...")
         
-        # Submit registration
-        submit_url = f"{base_url}/?pages=reg"
+        # Fill nickname
+        page.fill('input[name="login"]', nickname)
+        time.sleep(0.5)
         
-        headers = {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-            'Referer': reg_url,
-            'Content-Type': 'application/x-www-form-urlencoded'
-        }
+        # Fill email
+        page.fill('input[name="email"]', email)
+        time.sleep(0.5)
         
+        # Fill password
+        page.fill('input[name="pass"]', password)
+        time.sleep(0.5)
+        
+        # Fill captcha
+        page.fill('input[name="cap"]', captcha_answer)
+        time.sleep(0.5)
+        
+        logs.append("✅ Form filled successfully")
+        
+        # Step 4: Submit form
         logs.append("🚀 Submitting registration...")
-        reg_response = session.post(submit_url, data=registration_data, headers=headers, allow_redirects=True)
+        page.click('button[name="sub_reg"]')
         
-        # Check success
-        if reg_response.status_code == 200:
-            if ('?pages=game' in reg_response.url or 
-                'success' in reg_response.text.lower() or 
-                'welcome' in reg_response.text.lower()):
-                
-                logs.append(f"✅ Account created successfully!")
-                logs.append(f"👤 Username: {nickname}")
-                logs.append(f"📧 Email: {email}")
-                logs.append(f"🔑 Password: {password}")
-                
-                # Save to file
-                with open('accounts.txt', 'a', encoding='utf-8') as f:
-                    f.write(f"{nickname}|{email}|{password}\n")
-                
-                return {
-                    'success': True, 
-                    'logs': logs,
-                    'account': {
-                        'nickname': nickname,
-                        'email': email,
-                        'password': password
-                    }
+        # Wait for navigation
+        try:
+            page.wait_for_load_state('networkidle', timeout=10000)
+            time.sleep(2)
+        except:
+            pass
+        
+        # Check if registration successful
+        current_url = page.url
+        page_content = page.content()
+        
+        if '?pages=game' in current_url or 'success' in page_content.lower():
+            logs.append("✅ Account created successfully!")
+            logs.append(f"👤 Username: {nickname}")
+            logs.append(f"📧 Email: {email}")
+            logs.append(f"🔑 Password: {password}")
+            
+            # Save to file
+            with open('accounts.txt', 'a', encoding='utf-8') as f:
+                f.write(f"{nickname}|{email}|{password}\n")
+            
+            context.close()
+            
+            return {
+                'success': True,
+                'logs': logs,
+                'account': {
+                    'nickname': nickname,
+                    'email': email,
+                    'password': password
                 }
+            }
+        else:
+            logs.append("❌ Registration failed - please check captcha")
+            context.close()
+            return {'success': False, 'logs': logs}
         
-        logs.append("❌ Registration failed - please try again")
+    except Exception as e:
+        logs.append(f"❌ Error: {str(e)}")
+        try:
+            context.close()
+        except:
+            pass
         return {'success': False, 'logs': logs}
+
+def get_captcha_with_playwright(ref_link):
+    """Get captcha image using Playwright"""
+    try:
+        browser = init_browser()
+        context = browser.new_context(
+            viewport={'width': 1280, 'height': 720},
+            user_agent='Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36'
+        )
+        page = context.new_page()
+        
+        # Visit ref link first
+        page.goto(ref_link, wait_until='networkidle', timeout=30000)
+        time.sleep(1)
+        
+        # Go to registration page
+        page.goto('https://amingo.top/?pages=reg', wait_until='networkidle', timeout=30000)
+        time.sleep(1)
+        
+        # Find captcha image
+        captcha_element = page.query_selector('#cap_img')
+        
+        if captcha_element:
+            # Take screenshot of captcha
+            captcha_screenshot = captcha_element.screenshot()
+            context.close()
+            
+            # Convert to base64
+            captcha_base64 = base64.b64encode(captcha_screenshot).decode('utf-8')
+            return {
+                'success': True,
+                'image': f"data:image/png;base64,{captcha_base64}"
+            }
+        else:
+            context.close()
+            return {'success': False, 'error': 'Captcha not found'}
             
     except Exception as e:
-        return {'success': False, 'logs': [f"❌ Error: {str(e)}"]}
+        try:
+            context.close()
+        except:
+            pass
+        return {'success': False, 'error': str(e)}
 
 @app.route('/')
 def index():
@@ -126,52 +191,27 @@ def register():
     if not ref_link or not captcha:
         return jsonify({'success': False, 'error': 'Missing required fields'}), 400
     
-    result = register_single_account(ref_link, captcha)
+    # Validate ref link
+    if 'amingo.top' not in ref_link:
+        return jsonify({'success': False, 'error': 'Invalid amingo.top link'}), 400
+    
+    result = register_account_with_playwright(ref_link, captcha)
     return jsonify(result)
 
 @app.route('/get_captcha')
 def get_captcha():
-    """Fetch captcha image from registration page"""
+    """Fetch captcha image using Playwright"""
     try:
         ref_link = request.args.get('ref_link', '')
         if not ref_link:
             return jsonify({'error': 'No ref link provided'}), 400
         
-        base_url = "https://amingo.top"
+        # Validate ref link
+        if 'amingo.top' not in ref_link:
+            return jsonify({'error': 'Invalid amingo.top link'}), 400
         
-        # Create session and visit ref link first
-        session = requests.Session()
-        if '?ref=' in ref_link:
-            session.get(ref_link)
-            time.sleep(0.5)
-        
-        # Go to registration page
-        reg_url = f"{base_url}/?pages=reg"
-        response = session.get(reg_url)
-        
-        if response.status_code != 200:
-            return jsonify({'error': 'Failed to load registration page'}), 400
-        
-        # Parse HTML to find captcha
-        soup = BeautifulSoup(response.text, 'html.parser')
-        captcha_img = soup.find('img', {'id': 'cap_img'})
-        
-        if captcha_img:
-            img_src = captcha_img.get('src', '')
-            
-            if img_src and not img_src.startswith('http'):
-                img_src = base_url + ('/' if not img_src.startswith('/') else '') + img_src
-            
-            if img_src:
-                img_response = session.get(img_src)
-                if img_response.status_code == 200:
-                    img_base64 = base64.b64encode(img_response.content).decode('utf-8')
-                    return jsonify({
-                        'success': True,
-                        'image': f"data:image/png;base64,{img_base64}"
-                    })
-        
-        return jsonify({'error': 'Captcha not found'}), 404
+        result = get_captcha_with_playwright(ref_link)
+        return jsonify(result)
         
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -183,5 +223,7 @@ def download_accounts():
     return "No accounts file found", 404
 
 if __name__ == '__main__':
+    # Initialize browser on startup
+    init_browser()
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port)
