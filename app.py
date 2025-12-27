@@ -1,4 +1,4 @@
-# app.py - Flask Backend with Playwright Async + OCR for gamety.org
+# app.py - Flask Backend with Playwright + Gemini Vision for gamety.org
 from flask import Flask, render_template, request, jsonify, send_file
 from playwright.async_api import async_playwright
 import random
@@ -7,14 +7,13 @@ import os
 import base64
 import asyncio
 import re
-from PIL import Image
-import io
-try:
-    import pytesseract
-except:
-    pass
+import requests
 
 app = Flask(__name__)
+
+# Gemini API configuration
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', 'AIzaSyDzJbv97PW8mSa1ThJ7bfCq6-eeWlGkq2w')
+GEMINI_API_URL = f"https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key={GEMINI_API_KEY}"
 
 def generate_random_string(length=8):
     return ''.join(random.choices(string.ascii_lowercase + string.digits, k=length))
@@ -25,34 +24,50 @@ def generate_credentials():
     password = generate_random_string(12)
     return nickname, email, password
 
-def solve_captcha_with_ocr(image_bytes):
-    """Solve numeric captcha using Tesseract OCR"""
+def solve_captcha_with_gemini(image_bytes):
+    """Solve numeric captcha using Gemini Vision API"""
     try:
-        # Open image
-        image = Image.open(io.BytesIO(image_bytes))
+        # Convert image to base64
+        image_base64 = base64.b64encode(image_bytes).decode('utf-8')
         
-        # Convert to grayscale
-        image = image.convert('L')
+        # Prepare request for Gemini
+        payload = {
+            "contents": [{
+                "parts": [
+                    {
+                        "text": "This is a captcha image containing only 4 digits. Extract ONLY the 4 digits you see. Respond with ONLY the 4 digits, nothing else. No explanation, no other text."
+                    },
+                    {
+                        "inline_data": {
+                            "mime_type": "image/png",
+                            "data": image_base64
+                        }
+                    }
+                ]
+            }]
+        }
         
-        # Enhance contrast
-        from PIL import ImageEnhance
-        enhancer = ImageEnhance.Contrast(image)
-        image = enhancer.enhance(2)
+        # Call Gemini API
+        response = requests.post(GEMINI_API_URL, json=payload, timeout=10)
         
-        # Use Tesseract to extract text (digits only)
-        custom_config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789'
-        text = pytesseract.image_to_string(image, config=custom_config)
-        
-        # Clean the result - keep only digits
-        digits = re.sub(r'[^0-9]', '', text)
-        
-        return digits[:4] if len(digits) >= 4 else digits
+        if response.status_code == 200:
+            result = response.json()
+            text = result['candidates'][0]['content']['parts'][0]['text']
+            
+            # Extract only digits
+            digits = re.sub(r'[^0-9]', '', text)
+            
+            return digits[:4] if len(digits) >= 4 else digits
+        else:
+            print(f"Gemini API Error: {response.status_code} - {response.text}")
+            return None
+            
     except Exception as e:
-        print(f"OCR Error: {e}")
+        print(f"Gemini Error: {e}")
         return None
 
 async def register_account_with_playwright(ref_link, captcha_answer=None):
-    """Register account on gamety.org using Playwright with auto OCR"""
+    """Register account on gamety.org using Playwright with auto Gemini captcha solving"""
     logs = []
     
     try:
@@ -84,21 +99,21 @@ async def register_account_with_playwright(ref_link, captcha_answer=None):
             
             # Step 3: Solve captcha automatically if not provided
             if not captcha_answer:
-                logs.append("🤖 Auto-solving captcha with OCR...")
+                logs.append("🤖 Auto-solving captcha with Gemini AI...")
                 
                 # Get captcha image
                 captcha_element = await page.query_selector('#cap_img')
                 if captcha_element:
                     captcha_screenshot = await captcha_element.screenshot()
-                    captcha_text = solve_captcha_with_ocr(captcha_screenshot)
+                    captcha_text = solve_captcha_with_gemini(captcha_screenshot)
                     
                     if captcha_text and len(captcha_text) >= 4:
                         captcha_answer = captcha_text[:4]
-                        logs.append(f"✅ OCR solved captcha: {captcha_answer}")
+                        logs.append(f"✅ Gemini AI solved captcha: {captcha_answer}")
                     else:
-                        logs.append("❌ OCR failed to solve captcha")
+                        logs.append("❌ Gemini AI failed to solve captcha")
                         await browser.close()
-                        return {'success': False, 'logs': logs, 'error': 'OCR_FAILED'}
+                        return {'success': False, 'logs': logs, 'error': 'GEMINI_FAILED'}
                 else:
                     logs.append("❌ Captcha element not found")
                     await browser.close()
@@ -251,7 +266,7 @@ def register():
     data = request.json
     
     ref_link = data.get('refLink', '')
-    captcha = data.get('captcha', '')  # Optional - OCR will solve if empty
+    captcha = data.get('captcha', '')  # Optional - Gemini will solve if empty
     
     if not ref_link:
         return jsonify({'success': False, 'error': 'Missing ref link'}), 400
