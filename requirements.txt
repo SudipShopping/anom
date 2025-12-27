@@ -3,3 +3,5 @@ Werkzeug==3.0.1
 playwright==1.40.0
 gunicorn==21.2.0
 greenlet==3.0.1
+Pillow==10.1.0
+pytesseract==0.3.10
