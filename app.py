@@ -1,4 +1,4 @@
-# app.py - Flask Backend with Playwright Async for gamety.org
+# app.py - Flask Backend with Playwright Async + OCR for gamety.org
 from flask import Flask, render_template, request, jsonify, send_file
 from playwright.async_api import async_playwright
 import random
@@ -6,6 +6,13 @@ import string
 import os
 import base64
 import asyncio
+import re
+from PIL import Image
+import io
+try:
+    import pytesseract
+except:
+    pass
 
 app = Flask(__name__)
 
@@ -18,8 +25,34 @@ def generate_credentials():
     password = generate_random_string(12)
     return nickname, email, password
 
-async def register_account_with_playwright(ref_link, captcha_answer):
-    """Register account on gamety.org using Playwright"""
+def solve_captcha_with_ocr(image_bytes):
+    """Solve numeric captcha using Tesseract OCR"""
+    try:
+        # Open image
+        image = Image.open(io.BytesIO(image_bytes))
+        
+        # Convert to grayscale
+        image = image.convert('L')
+        
+        # Enhance contrast
+        from PIL import ImageEnhance
+        enhancer = ImageEnhance.Contrast(image)
+        image = enhancer.enhance(2)
+        
+        # Use Tesseract to extract text (digits only)
+        custom_config = r'--oem 3 --psm 7 -c tessedit_char_whitelist=0123456789'
+        text = pytesseract.image_to_string(image, config=custom_config)
+        
+        # Clean the result - keep only digits
+        digits = re.sub(r'[^0-9]', '', text)
+        
+        return digits[:4] if len(digits) >= 4 else digits
+    except Exception as e:
+        print(f"OCR Error: {e}")
+        return None
+
+async def register_account_with_playwright(ref_link, captcha_answer=None):
+    """Register account on gamety.org using Playwright with auto OCR"""
     logs = []
     
     try:
@@ -49,11 +82,35 @@ async def register_account_with_playwright(ref_link, captcha_answer):
             await asyncio.sleep(1)
             logs.append("✅ Registration page loaded")
             
+            # Step 3: Solve captcha automatically if not provided
+            if not captcha_answer:
+                logs.append("🤖 Auto-solving captcha with OCR...")
+                
+                # Get captcha image
+                captcha_element = await page.query_selector('#cap_img')
+                if captcha_element:
+                    captcha_screenshot = await captcha_element.screenshot()
+                    captcha_text = solve_captcha_with_ocr(captcha_screenshot)
+                    
+                    if captcha_text and len(captcha_text) >= 4:
+                        captcha_answer = captcha_text[:4]
+                        logs.append(f"✅ OCR solved captcha: {captcha_answer}")
+                    else:
+                        logs.append("❌ OCR failed to solve captcha")
+                        await browser.close()
+                        return {'success': False, 'logs': logs, 'error': 'OCR_FAILED'}
+                else:
+                    logs.append("❌ Captcha element not found")
+                    await browser.close()
+                    return {'success': False, 'logs': logs}
+            else:
+                logs.append(f"✅ Using provided captcha: {captcha_answer}")
+            
             # Generate credentials
             nickname, email, password = generate_credentials()
             logs.append(f"📝 Generated credentials: {nickname}")
             
-            # Step 3: Fill registration form
+            # Step 4: Fill registration form
             logs.append("✍️ Filling registration form...")
             
             # Fill login (username)
@@ -74,7 +131,7 @@ async def register_account_with_playwright(ref_link, captcha_answer):
             
             logs.append("✅ Form filled successfully")
             
-            # Step 4: Submit form
+            # Step 5: Submit form
             logs.append("🚀 Submitting registration...")
             await page.click('button[name="sub_reg"]')
             
@@ -89,13 +146,13 @@ async def register_account_with_playwright(ref_link, captcha_answer):
             current_url = page.url
             
             if '?pages=games' not in current_url:
-                logs.append("❌ Registration failed - please check captcha")
+                logs.append("❌ Registration failed - wrong captcha or error")
                 await browser.close()
                 return {'success': False, 'logs': logs}
             
             logs.append("✅ Account created successfully!")
             
-            # Step 5: Buy person (Detector)
+            # Step 6: Buy person (Detector)
             logs.append("🛒 Navigating to person purchase...")
             await page.goto('https://gamety.org/?pages=games', wait_until='networkidle', timeout=30000)
             await asyncio.sleep(2)
@@ -190,21 +247,21 @@ def index():
 
 @app.route('/register', methods=['POST'])
 def register():
-    """Register a single account"""
+    """Register a single account with optional manual captcha"""
     data = request.json
     
     ref_link = data.get('refLink', '')
-    captcha = data.get('captcha', '')
+    captcha = data.get('captcha', '')  # Optional - OCR will solve if empty
     
-    if not ref_link or not captcha:
-        return jsonify({'success': False, 'error': 'Missing required fields'}), 400
+    if not ref_link:
+        return jsonify({'success': False, 'error': 'Missing ref link'}), 400
     
     # Validate ref link
     if 'gamety.org' not in ref_link:
         return jsonify({'success': False, 'error': 'Invalid gamety.org link'}), 400
     
-    # Run async function
-    result = asyncio.run(register_account_with_playwright(ref_link, captcha))
+    # Run async function (with or without manual captcha)
+    result = asyncio.run(register_account_with_playwright(ref_link, captcha if captcha else None))
     return jsonify(result)
 
 @app.route('/get_captcha')
