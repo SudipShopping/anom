@@ -69,6 +69,7 @@ def solve_captcha_with_gemini(image_bytes):
 async def register_account_with_playwright(ref_link, captcha_answer=None):
     """Register account on gamety.org using Playwright with auto Gemini captcha solving"""
     logs = []
+    browser = None
     
     try:
         async with async_playwright() as p:
@@ -210,10 +211,16 @@ async def register_account_with_playwright(ref_link, captcha_answer=None):
         
     except Exception as e:
         logs.append(f"❌ Error: {str(e)}")
-        return {'success': False, 'logs': logs}
+        if browser:
+            try:
+                await browser.close()
+            except:
+                pass
+        return {'success': False, 'logs': logs, 'error': str(e)}
 
 async def get_captcha_with_playwright(ref_link):
     """Get captcha image from gamety.org using Playwright"""
+    browser = None
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -241,20 +248,28 @@ async def get_captcha_with_playwright(ref_link):
             if captcha_element:
                 # Take screenshot of captcha
                 captcha_screenshot = await captcha_element.screenshot()
-                await browser.close()
                 
                 # Convert to base64
                 captcha_base64 = base64.b64encode(captcha_screenshot).decode('utf-8')
+                
+                await browser.close()
+                
                 return {
                     'success': True,
                     'image': f"data:image/png;base64,{captcha_base64}"
                 }
             else:
-                await browser.close()
-                return {'success': False, 'error': 'Captcha not found'}
+                if browser:
+                    await browser.close()
+                return {'success': False, 'error': 'Captcha element not found'}
             
     except Exception as e:
-        return {'success': False, 'error': str(e)}
+        if browser:
+            try:
+                await browser.close()
+            except:
+                pass
+        return {'success': False, 'error': f'Playwright error: {str(e)}'}
 
 @app.route('/')
 def index():
@@ -263,40 +278,50 @@ def index():
 @app.route('/register', methods=['POST'])
 def register():
     """Register a single account with optional manual captcha"""
-    data = request.json
-    
-    ref_link = data.get('refLink', '')
-    captcha = data.get('captcha', '')  # Optional - Gemini will solve if empty
-    
-    if not ref_link:
-        return jsonify({'success': False, 'error': 'Missing ref link'}), 400
-    
-    # Validate ref link
-    if 'gamety.org' not in ref_link:
-        return jsonify({'success': False, 'error': 'Invalid gamety.org link'}), 400
-    
-    # Run async function (with or without manual captcha)
-    result = asyncio.run(register_account_with_playwright(ref_link, captcha if captcha else None))
-    return jsonify(result)
+    try:
+        data = request.json
+        
+        ref_link = data.get('refLink', '')
+        captcha = data.get('captcha', '')  # Optional - Gemini will solve if empty
+        
+        if not ref_link:
+            return jsonify({'success': False, 'error': 'Missing ref link'}), 200
+        
+        # Validate ref link
+        if 'gamety.org' not in ref_link:
+            return jsonify({'success': False, 'error': 'Invalid gamety.org link'}), 200
+        
+        # Run async function (with or without manual captcha)
+        result = asyncio.run(register_account_with_playwright(ref_link, captcha if captcha else None))
+        return jsonify(result), 200
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 200
 
 @app.route('/get_captcha')
 def get_captcha():
     """Fetch captcha image using Playwright"""
     try:
         ref_link = request.args.get('ref_link', '')
-        if not ref_link:
-            return jsonify({'error': 'No ref link provided'}), 400
         
         # Validate ref link
+        if not ref_link:
+            return jsonify({'success': False, 'error': 'No ref link provided'}), 200
+        
         if 'gamety.org' not in ref_link:
-            return jsonify({'error': 'Invalid gamety.org link'}), 400
+            return jsonify({'success': False, 'error': 'Invalid gamety.org link'}), 200
         
         # Run async function
         result = asyncio.run(get_captcha_with_playwright(ref_link))
-        return jsonify(result)
+        
+        # Ensure result is JSON-serializable
+        if result is None:
+            return jsonify({'success': False, 'error': 'Failed to load captcha'}), 200
+            
+        return jsonify(result), 200
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 200
 
 @app.route('/download')
 def download_accounts():
