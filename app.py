@@ -1,9 +1,8 @@
-# app.py - Flask Backend with Playwright Async
+# app.py - Flask Backend with Playwright Async for gamety.org
 from flask import Flask, render_template, request, jsonify, send_file
 from playwright.async_api import async_playwright
 import random
 import string
-import time
 import os
 import base64
 import asyncio
@@ -20,7 +19,7 @@ def generate_credentials():
     return nickname, email, password
 
 async def register_account_with_playwright(ref_link, captcha_answer):
-    """Register account using Playwright browser automation"""
+    """Register account on gamety.org using Playwright"""
     logs = []
     
     try:
@@ -46,7 +45,7 @@ async def register_account_with_playwright(ref_link, captcha_answer):
             
             # Step 2: Go to registration page
             logs.append("📡 Navigating to registration page...")
-            await page.goto('https://amingo.top/?pages=reg', wait_until='networkidle', timeout=30000)
+            await page.goto('https://gamety.org/?pages=reg', wait_until='networkidle', timeout=30000)
             await asyncio.sleep(1)
             logs.append("✅ Registration page loaded")
             
@@ -57,7 +56,7 @@ async def register_account_with_playwright(ref_link, captcha_answer):
             # Step 3: Fill registration form
             logs.append("✍️ Filling registration form...")
             
-            # Fill nickname
+            # Fill login (username)
             await page.fill('input[name="login"]', nickname)
             await asyncio.sleep(0.5)
             
@@ -88,39 +87,61 @@ async def register_account_with_playwright(ref_link, captcha_answer):
             
             # Check if registration successful
             current_url = page.url
-            page_content = await page.content()
+            
+            if '?pages=games' not in current_url:
+                logs.append("❌ Registration failed - please check captcha")
+                await browser.close()
+                return {'success': False, 'logs': logs}
+            
+            logs.append("✅ Account created successfully!")
+            
+            # Step 5: Buy person (Detector)
+            logs.append("🛒 Navigating to person purchase...")
+            await page.goto('https://gamety.org/?pages=games', wait_until='networkidle', timeout=30000)
+            await asyncio.sleep(2)
+            
+            # Find and click buy button for Detector (p11)
+            try:
+                # Look for the form with p=p11
+                buy_button = await page.query_selector('button[name="person_buy"]')
+                
+                if buy_button:
+                    logs.append("💰 Purchasing Detector (500 coins)...")
+                    await buy_button.click()
+                    await asyncio.sleep(3)
+                    
+                    logs.append("✅ Person purchased successfully!")
+                else:
+                    logs.append("⚠️ Person buy button not found")
+            except Exception as e:
+                logs.append(f"⚠️ Person purchase failed: {str(e)}")
             
             await browser.close()
             
-            if '?pages=game' in current_url or 'success' in page_content.lower():
-                logs.append("✅ Account created successfully!")
-                logs.append(f"👤 Username: {nickname}")
-                logs.append(f"📧 Email: {email}")
-                logs.append(f"🔑 Password: {password}")
-                
-                # Save to file
-                with open('accounts.txt', 'a', encoding='utf-8') as f:
-                    f.write(f"{nickname}|{email}|{password}\n")
-                
-                return {
-                    'success': True,
-                    'logs': logs,
-                    'account': {
-                        'nickname': nickname,
-                        'email': email,
-                        'password': password
-                    }
+            logs.append(f"👤 Username: {nickname}")
+            logs.append(f"📧 Email: {email}")
+            logs.append(f"🔑 Password: {password}")
+            
+            # Save to file
+            with open('accounts.txt', 'a', encoding='utf-8') as f:
+                f.write(f"{nickname}|{email}|{password}|PERSON_BOUGHT\n")
+            
+            return {
+                'success': True,
+                'logs': logs,
+                'account': {
+                    'nickname': nickname,
+                    'email': email,
+                    'password': password
                 }
-            else:
-                logs.append("❌ Registration failed - please check captcha")
-                return {'success': False, 'logs': logs}
+            }
         
     except Exception as e:
         logs.append(f"❌ Error: {str(e)}")
         return {'success': False, 'logs': logs}
 
 async def get_captcha_with_playwright(ref_link):
-    """Get captcha image using Playwright"""
+    """Get captcha image from gamety.org using Playwright"""
     try:
         async with async_playwright() as p:
             browser = await p.chromium.launch(
@@ -139,7 +160,7 @@ async def get_captcha_with_playwright(ref_link):
             await asyncio.sleep(1)
             
             # Go to registration page
-            await page.goto('https://amingo.top/?pages=reg', wait_until='networkidle', timeout=30000)
+            await page.goto('https://gamety.org/?pages=reg', wait_until='networkidle', timeout=30000)
             await asyncio.sleep(1)
             
             # Find captcha image
@@ -179,8 +200,8 @@ def register():
         return jsonify({'success': False, 'error': 'Missing required fields'}), 400
     
     # Validate ref link
-    if 'amingo.top' not in ref_link:
-        return jsonify({'success': False, 'error': 'Invalid amingo.top link'}), 400
+    if 'gamety.org' not in ref_link:
+        return jsonify({'success': False, 'error': 'Invalid gamety.org link'}), 400
     
     # Run async function
     result = asyncio.run(register_account_with_playwright(ref_link, captcha))
@@ -195,8 +216,8 @@ def get_captcha():
             return jsonify({'error': 'No ref link provided'}), 400
         
         # Validate ref link
-        if 'amingo.top' not in ref_link:
-            return jsonify({'error': 'Invalid amingo.top link'}), 400
+        if 'gamety.org' not in ref_link:
+            return jsonify({'error': 'Invalid gamety.org link'}), 400
         
         # Run async function
         result = asyncio.run(get_captcha_with_playwright(ref_link))
