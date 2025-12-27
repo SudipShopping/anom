@@ -4,6 +4,10 @@ set -e
 echo "=== Setting up environment ==="
 export PLAYWRIGHT_BROWSERS_PATH=/opt/render/project/.cache/ms-playwright
 
+echo "=== Installing system dependencies ==="
+apt-get update || true
+apt-get install -y tesseract-ocr || true
+
 echo "=== Upgrading pip ==="
 pip install --upgrade pip
 
@@ -13,7 +17,7 @@ pip install -r requirements.txt
 echo "=== Installing Playwright Chromium ==="
 python -m playwright install chromium
 
-echo "=== Verifying installation ==="
-ls -la $PLAYWRIGHT_BROWSERS_PATH/chromium-*/ || echo "Chromium not found"
+echo "=== Verifying Tesseract ==="
+tesseract --version || echo "Tesseract not installed, OCR may fail"
 
 echo "=== Setup complete! ==="
